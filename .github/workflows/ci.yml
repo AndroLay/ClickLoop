@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows-gnu:
+    name: Build, Lint & Test (Windows x64 GNU)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure MinGW windres on PATH
+        run: |
+          $candidates = @(
+            "C:\msys64\ucrt64\bin",
+            "C:\msys64\mingw64\bin",
+            "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
+          )
+          foreach ($dir in $candidates) {
+            if (Test-Path (Join-Path $dir "windres.exe")) {
+              Add-Content -Path $env:GITHUB_PATH -Value $dir
+              Write-Host "Using windres from $dir"
+              break
+            }
+          }
+
+      - name: Install Rust GNU toolchain
+        run: |
+          rustup toolchain install stable-x86_64-pc-windows-gnu --component clippy,rustfmt
+          rustup default stable-x86_64-pc-windows-gnu
+          rustc -vV
+          windres --version
+
+      - name: Format, lint & test ClickLoop
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+
+      - name: Build ClickLoop release binary
+        run: cargo build --release
+
+      - name: Format, lint & test ClickLoop-Setup installer
+        run: |
+          cargo fmt --manifest-path installer/Cargo.toml --check
+          cargo clippy --manifest-path installer/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path installer/Cargo.toml
+
+      - name: Package installer & portable binaries
+        run: .\scripts\build-installer.ps1 -SkipAppBuild
+
+      - name: Generate SHA256 checksums
+        run: |
+          $lines = Get-ChildItem dist\*.exe | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          [IO.File]::WriteAllLines((Resolve-Path dist).Path + "\SHA256SUMS.txt", $lines, (New-Object Text.UTF8Encoding($false)))
+          Get-Content dist\SHA256SUMS.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: clickloop-windows-x64
+          path: |
+            dist/ClickLoop-Setup.exe
+            dist/clickloop.exe
+            dist/SHA256SUMS.txt
+          retention-days: 14

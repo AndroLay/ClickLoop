@@ -9,6 +9,7 @@
   and a standalone per-user installer &amp; uninstaller.
 </p>
 <p align="center">
+  <a href="https://github.com/AndroLay/ClickLoop/actions/workflows/ci.yml"><img src="https://github.com/AndroLay/ClickLoop/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI: Build, Lint &amp; Test"></a>
   <a href="https://github.com/AndroLay/ClickLoop/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/Release-v1.0.0-0067C0" alt="Release v1.0.0"></a>
   <img src="https://img.shields.io/badge/Rust-2021-DEA584?logo=rust&amp;logoColor=white" alt="Rust 2021">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11%20x64-0078D4?logo=windows&amp;logoColor=white" alt="Windows 10/11 x64">
