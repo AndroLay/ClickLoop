@@ -26,4 +26,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   - Pure-Rust zero-dependency setup wizard embedding the release `clickloop.exe`.
   - Per-user installation to `%LOCALAPPDATA%\Programs\ClickLoop` (no UAC prompt), native COM `.lnk` shortcuts, Windows **Settings → Apps** uninstall registration, standalone `uninstall.exe`, and silent CLI flags (`--silent`, `--uninstall`, `--remove-config`).
 - **Documentation**:
-  - Comprehensive README with real application screenshots and Mermaid architecture/workflow diagrams, plus `docs/USER_GUIDE.md`, `docs/ARCHITECTURE.md`, and `docs/INSTALLER.md`.
+  - Clean README with real application screenshots plus dedicated `docs/USER_GUIDE.md`, `docs/ARCHITECTURE.md`, and `docs/INSTALLER.md`.

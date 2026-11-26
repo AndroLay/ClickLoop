@@ -22,8 +22,7 @@
   <a href="#why-clickloop">Why ClickLoop</a> ·
   <a href="#inside-the-application">Screenshots</a> ·
   <a href="#features">Features</a> ·
-  <a href="#how-it-works">How it works</a> ·
-  <a href="#architecture">Architecture</a> ·
+  <a href="#default-hotkeys--cli-reference">Hotkeys &amp; CLI</a> ·
   <a href="docs/README.md">Documentation</a> ·
   <a href="CHANGELOG.md">Changelog</a>
 </p>
@@ -95,128 +94,6 @@ Actual captures from the Windows 11 release build (`v1.0.0`). Click any image to
 | **Safety Guards** | **Focus guard** (pauses when foreground window changes), **Failsafe** (rapid mouse shake or top-left `(0, 0)` corner) | Automatically releases any held buttons or keys |
 | **UI & Workspace** | Fluent Light/Dark theme, DPI PerMonitorV2, balanced `580 × 540` 2-tab layout, `320 × 140` Mini mode, Always on top, System tray | Persists state in `clickloop.ini` + `.ini` profiles |
 | **Installer & CLI** | Standalone `ClickLoop-Setup.exe` + `uninstall.exe`, silent flags (`--silent`, `--uninstall`), full CLI launch flags | Per-user install, registered in **Settings → Apps** |
-
----
-
-## How it works
-
-### High-precision Auto Clicker & anti-burst `1 ms` scheduling
-
-At normal intervals (`> 5 ms`), ClickLoop advances deadlines drift-free using a hybrid waitable-timer + micro-spin waiter. At ultra-low intervals (`<= 5 ms`, down to `1 ms`), it schedules from completion time (`now + interval`) so OS scheduling hiccups never trigger runaway catch-up click bursts.
-
-```mermaid
-flowchart LR
-    A["Trigger<br/>F6 / Mouse 4 / Mouse 5"] --> B{"Delayed start<br/>configured?"}
-    B -- "Yes" --> C["Millisecond countdown<br/>m · s · ms"]
-    B -- "No" --> D["Guard check<br/>Focus guard · Failsafe"]
-    C --> D
-    D -- "Paused" --> E["Release held input<br/>Wait for focus"]
-    D -- "Active" --> F["Target point<br/>Cursor / Fixed / Sequence + jitter"]
-    F --> G["SendInput<br/>Single / Double / Triple / Hold"]
-    G --> H{"Interval <= 5 ms?"}
-    H -- "Yes (anti-burst)" --> I["next = now + interval<br/>yield to kernel timer"]
-    H -- "No (drift-free)" --> J["next = deadline + interval<br/>hybrid timer + spin"]
-    I --> D
-    J --> D
-```
-
-### Record & Playback pipeline (`.clm`)
-
-```mermaid
-flowchart LR
-    R["Record (F9)"] --> H["WH_MOUSE_LL + WH_KEYBOARD_LL<br/>Skips ClickLoop window &amp; control hotkeys"]
-    H --> C["Coalesce moves &gt;= 3 px / 8 ms<br/>Trim trailing modifier keys"]
-    C --> M["In-memory macro<br/>or Save / Load .clm file"]
-    M --> P["Play (F10)<br/>Optional delayed start + Loop"]
-    P --> S["Drift-free Waiter<br/>+ Focus guard &amp; Failsafe"]
-    S --> I["SendInput replay<br/>Tracks pressed buttons &amp; keys"]
-    I --> X["On Stop / Pause<br/>Auto-release all held inputs"]
-```
-
-### Runtime safety lifecycle
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant UI as Main Window (Win32/GDI)
-    participant Worker as Clicker / Macro Thread
-    participant Guard as Focus Guard &amp; Failsafe
-    participant OS as Windows Input Queue
-
-    User->>UI: Press F6 (Click) or F10 (Play)
-    UI->>Worker: Spawn / start worker with snapshot settings
-    opt Delayed start &gt; 0 ms
-        Worker->>Worker: Millisecond countdown (cancelable anytime)
-    end
-    loop Until stopped or limit reached
-        Worker->>Guard: Check foreground HWND &amp; cursor velocity/corner
-        alt Failsafe triggered
-            Guard-->>Worker: Stop signal
-            Worker->>OS: Release any held buttons/keys
-        else Focus changed (Focus guard on)
-            Guard-->>Worker: Pause
-            Worker->>OS: Release held inputs until target window returns
-        else Clear to run
-            Worker->>OS: SendInput (click, move, wheel, or key)
-        end
-    end
-    Worker-->>UI: Update status pill &amp; final counters
-```
-
----
-
-## Architecture
-
-```mermaid
-flowchart LR
-    subgraph UI["UI Thread · Native Win32 + GDI"]
-        WIN["ui/window.rs · Rc&lt;RefCell&lt;Ui&gt;&gt;"]
-        DRAW["theme.rs · ui/draw.rs<br/>Anti-aliased Fluent Light/Dark"]
-        TRAY["ui/tray.rs · Single-instance<br/>+ TaskbarCreated recovery"]
-        DLG["shell.rs · Native .ini / .clm dialogs"]
-    end
-
-    subgraph ENGINE["Worker Threads · Zero-Crate Engine"]
-        CLK["clicker.rs<br/>Anti-burst clicker &amp; Hold runner"]
-        MAC["macro.rs<br/>LL Hooks · Replay · .clm codec"]
-        WAIT["wait.rs<br/>High-res waitable timer + spin"]
-        GRD["guard.rs<br/>Focus guard · Shake/Corner failsafe"]
-    end
-
-    subgraph STORAGE["Local Persistence"]
-        INI[("clickloop.ini<br/>&amp; user .ini profiles")]
-        CLM[("*.clm<br/>Portable macro files")]
-    end
-
-    subgraph SETUP["Standalone Installer · installer/"]
-        INST["ClickLoop-Setup.exe<br/>Embeds release clickloop.exe"]
-        COM["COM IShellLinkW<br/>Start Menu &amp; Desktop .lnk"]
-        REG["HKCU Uninstall Registry<br/>Settings → Apps + uninstall.exe"]
-    end
-
-    WIN --> CLK
-    WIN --> MAC
-    CLK --> WAIT
-    CLK --> GRD
-    MAC --> WAIT
-    MAC --> GRD
-    WIN --> INI
-    DLG --> INI
-    DLG --> CLM
-    INST --> COM
-    INST --> REG
-```
-
-| Engineering principle | Implementation |
-| --- | --- |
-| **Zero external dependencies** | Both `clickloop` and `clickloop-installer` have empty `[dependencies]` — all Win32, GDI, COM, registry, and `.ico` rendering live in clean internal modules |
-| **Re-entrancy safe Win32 state** | UI state uses `Rc<RefCell<Ui>>` (`UiCell`) with explicit `window_alive(hwnd)` guards across modal dialogs and DPI changes |
-| **Per-monitor crisp rendering** | `PerMonitorV2` DPI awareness, `AdjustWindowRectExForDpi`, custom anti-aliased rounded corners without GDI+ overhead, proper GDI handle cleanup on `WM_DPICHANGED` |
-| **Stuck-key prevention** | Macro playback tracks every synthetic mouse button and virtual key pressed and releases them automatically on stop, pause, or failsafe |
-| **Non-elevated install safety** | Installs into `%LOCALAPPDATA%\Programs\ClickLoop` (`asInvoker`) so no UAC elevation is needed and `clickloop.ini` stays writable |
-
-Deep dive: [Architecture Guide](docs/ARCHITECTURE.md) · [User Guide](docs/USER_GUIDE.md) · [Installer &amp; Uninstaller Reference](docs/INSTALLER.md)
 
 ---
 

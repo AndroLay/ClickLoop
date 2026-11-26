@@ -29,31 +29,41 @@ The repository contains two standalone zero-dependency Rust crates:
 
 ---
 
-## 2. Threading &amp; State Safety Model
+## 2. Core Engineering Principles
 
-```mermaid
-flowchart TB
-    subgraph MAIN["UI Thread (Single-threaded STA)"]
-        MSG["Win32 Message Loop"]
-        CELL["UiCell = Rc&lt;RefCell&lt;Ui&gt;&gt;"]
-        TIMER["250 ms UI Refresh Timer"]
-        MSG --> CELL
-        TIMER --> CELL
-    end
+| Principle | Implementation |
+| --- | --- |
+| **Zero external dependencies** | Both `clickloop` and `clickloop-installer` have empty `[dependencies]` — all Win32, GDI, COM, registry, and `.ico` rendering live in clean internal modules. |
+| **Re-entrancy safe Win32 state** | UI state uses `Rc<RefCell<Ui>>` (`UiCell`) with explicit `window_alive(hwnd)` guards across modal dialogs and DPI changes. |
+| **Per-monitor crisp rendering** | `PerMonitorV2` DPI awareness, `AdjustWindowRectExForDpi`, custom anti-aliased rounded corners without GDI+ overhead, and clean GDI handle disposal on `WM_DPICHANGED`. |
+| **Stuck-key prevention** | Macro playback tracks every synthetic mouse button and virtual key pressed and releases them automatically on stop, pause, or failsafe. |
+| **Non-elevated install safety** | Installs into `%LOCALAPPDATA%\Programs\ClickLoop` (`asInvoker`) so no UAC elevation is required and `clickloop.ini` stays writable. |
 
-    subgraph WORKERS["Background Worker Threads"]
-        CLK["Clicker / Hold Thread<br/>Arc&lt;AtomicBool&gt; stop · counters"]
-        PLAY["Macro Playback Thread<br/>Arc&lt;AtomicBool&gt; stop · pause reason"]
-        REC["Macro Recorder Thread<br/>Dedicated hook message loop"]
-    end
+---
 
-    CELL -- "Snapshot Settings / Events" --> CLK
-    CELL -- "Snapshot Macro + Options" --> PLAY
-    CELL -- "Start / Stop Recording" --> REC
-    CLK -. "Atomic counters &amp; state" .-> TIMER
-    PLAY -. "Atomic status &amp; loop count" .-> TIMER
-    REC -. "Collected Vec&lt;Event&gt;" .-> CELL
-```
+## 3. Execution Flows (Simplified)
+
+### Auto Clicker Loop
+1. **Trigger:** User presses the global hotkey (`F6`) or holds Mouse 4 / Mouse 5.
+2. **Delayed start (optional):** Runs a cancelable millisecond countdown (`m / s / ms`).
+3. **Safety checks:** Verifies **Failsafe** (mouse shake or top-left corner) and **Focus guard** (pauses automatically if another window takes focus).
+4. **Input &amp; timing:** Resolves the target point (live cursor, fixed `(X, Y)`, or 2–5 point sequence + optional pixel jitter), sends input via `SendInput`, and waits for the next deadline.
+
+### Record &amp; Playback Loop
+1. **Record (`F9`):** Captures mouse movement, clicks, wheel, and keyboard down/up events on an isolated hook thread, skipping ClickLoop's own window and control hotkeys, coalescing tiny moves (`>= 3 px` / `>= 8 ms`), and trimming trailing modifier keys.
+2. **Store (optional):** Saves/loads macros in portable plain-text `.clm` files.
+3. **Playback (`F10`):** Runs optional delayed start, replays events drift-free via `Waiter` (once or on Loop) under Focus guard &amp; Failsafe, and releases any held mouse buttons or keyboard keys immediately on pause or stop.
+
+---
+
+## 4. Threading &amp; State Safety Model
+
+| Thread | Responsibility | Communication |
+| --- | --- | --- |
+| **UI Thread (STA)** | Runs the Win32 message loop, holds `UiCell = Rc<RefCell<Ui>>`, renders Fluent GDI UI, and polls live progress on a `250 ms` timer. | Passes immutable snapshots of settings/events to workers; reads atomic counters and status flags. |
+| **Clicker / Hold Worker** | Executes delayed countdown, Focus guard / Failsafe checks, `SendInput`, and `Waiter` timing. | Controlled via `Arc<AtomicBool>` stop flag; exposes click count, countdown, and pause reason atomically. |
+| **Macro Playback Worker** | Executes delayed countdown, drift-free `.clm` event replay, loop counter, and stuck-input cleanup. | Controlled via `Arc<AtomicBool>` stop flag; exposes loop count and pause state atomically. |
+| **Macro Recorder Thread** | Runs a dedicated message pump for `WH_MOUSE_LL` and `WH_KEYBOARD_LL` so hook latency never hits Windows' `LowLevelHooksTimeout`. | Returns the finalized `Vec<Event>` to the UI thread on stop. |
 
 ### Re-entrancy Protection (`UiCell`)
 Win32 message handlers (`wnd_proc`) are inherently re-entrant: calling `SetWindowTextW`, `DestroyWindow`, `MessageBoxW`, or native file dialogs synchronously dispatches nested messages back into `wnd_proc`.
@@ -63,7 +73,7 @@ Win32 message handlers (`wnd_proc`) are inherently re-entrant: calling `SetWindo
 
 ---
 
-## 3. Timing Precision &amp; `1 ms` Anti-Burst Scheduling
+## 5. Timing Precision &amp; `1 ms` Anti-Burst Scheduling
 
 - **`Waiter` (`src/wait.rs`):** Requests `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION` (Windows 10 1803+) with fallback to standard waitable timers, sleeping in the kernel until ~1–2 ms before the deadline and performing a brief bounded yield/spin for sub-millisecond accuracy while polling the `stop` atomic flag.
 - **Anti-burst rule (`src/clicker.rs`):**
@@ -72,7 +82,7 @@ Win32 message handlers (`wnd_proc`) are inherently re-entrant: calling `SetWindo
 
 ---
 
-## 4. Macro Recording &amp; Replay Integrity
+## 6. Macro Recording &amp; Replay Integrity
 
 - **Isolated hook thread:** `WH_MOUSE_LL` and `WH_KEYBOARD_LL` run on a dedicated thread with its own message pump so hook latency stays tiny and never trips Windows' `LowLevelHooksTimeout`.
 - **Event filtering &amp; coalescing:**
@@ -84,7 +94,7 @@ Win32 message handlers (`wnd_proc`) are inherently re-entrant: calling `SetWindo
 
 ---
 
-## 5. Single-Instance &amp; System Tray Recovery
+## 7. Single-Instance &amp; System Tray Recovery
 
 - A named mutex (`Local\ClickLoop.SingleInstance`) ensures only one ClickLoop instance registers global hotkeys.
 - A second launch locates `"ClickLoopWindow"` via `FindWindowW`, posts custom message `WM_RESTORE_APP`, and calls `SetForegroundWindow` — restoring the app seamlessly even when hidden in the system tray.
