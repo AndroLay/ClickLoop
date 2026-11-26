@@ -1,0 +1,21 @@
+[package]
+name = "clickloop"
+version = "1.0.0"
+edition = "2021"
+description = "A lightweight auto clicker and mouse/keyboard macro recorder for Windows, written in pure Rust with zero dependencies"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/AndroLay/ClickLoop"
+
+[dependencies]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Build script merender ikon; dioptimalkan agar build tetap cepat.
+[profile.release.build-override]
+opt-level = 3

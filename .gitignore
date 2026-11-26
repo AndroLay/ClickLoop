@@ -1,0 +1,15 @@
+# Rust build output
+/target/
+/installer/target/
+
+# Packaged release binaries and installer output
+/dist/
+
+# Settings written by the app next to the executable
+clickloop.ini
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+Thumbs.db
