@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Dependencies-Zero%20Crates-16A34A" alt="Zero External Crates">
   <img src="https://img.shields.io/badge/Portable-476%20KB-0F172A" alt="476 KB Portable">
   <img src="https://img.shields.io/badge/Installer-881%20KB-0F172A" alt="881 KB Setup">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-19B99A" alt="MIT License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue" alt="GNU GPLv3 License"></a>
 </p>
 <p align="center">
   <a href="#quick-start">Download &amp; install</a> ·
@@ -196,7 +196,7 @@ ClickLoop/
 │   └── build-installer.ps1       # End-to-end release + installer packaging script
 ├── docs/                         # User guide, architecture, installer manual, screenshots
 ├── CHANGELOG.md                  # Release history
-└── LICENSE                       # MIT License
+└── LICENSE                       # GNU General Public License v3.0
 ```
 
 ---
@@ -238,4 +238,4 @@ Latest verified results (`v1.0.0`):
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Internal design, threading model, timing precision, hook coalescing, and rendering pipeline |
 | [docs/INSTALLER.md](docs/INSTALLER.md) | Interactive and silent installation, update, uninstallation, and packaging guide |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and release highlights |
-| [LICENSE](LICENSE) | MIT License |
+| [LICENSE](LICENSE) | GNU General Public License v3.0 (GPL-3.0-only) |

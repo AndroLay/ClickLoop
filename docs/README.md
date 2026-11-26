@@ -15,4 +15,4 @@ Welcome to the documentation hub for **ClickLoop**. Use the guide below to jump 
 
 - **Overview &amp; Screenshots:** [Main README](../README.md)
 - **Downloads:** [GitHub Releases](https://github.com/AndroLay/ClickLoop/releases)
-- **License:** [MIT License](../LICENSE)
+- **License:** [GNU General Public License v3.0](../LICENSE)

@@ -3,7 +3,7 @@ name = "clickloop"
 version = "1.0.0"
 edition = "2021"
 description = "A lightweight auto clicker and mouse/keyboard macro recorder for Windows, written in pure Rust with zero dependencies"
-license = "MIT"
+license = "GPL-3.0-only"
 readme = "README.md"
 repository = "https://github.com/AndroLay/ClickLoop"
 

@@ -3,7 +3,7 @@ name = "clickloop-installer"
 version = "1.0.0"
 edition = "2021"
 description = "Standalone Windows installer and uninstaller for ClickLoop"
-license = "MIT"
+license = "GPL-3.0-only"
 
 [[bin]]
 name = "ClickLoop-Setup"
