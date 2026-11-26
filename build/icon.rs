@@ -2,7 +2,7 @@
 //! kotak membulat biru bergradasi, cincin loop putih dengan kepala panah, dan kursor putih di tengah dengan bayangan lembut.
 //! Hasilnya .ico multi-ukuran: BMP 32-bit untuk ukuran kecil, PNG (deflate sendiri) untuk 256 px.
 
-const SIZES: [u32; 8] = [16, 20, 24, 32, 40, 48, 64, 256];
+const SIZES: [u32; 15] = [16, 20, 24, 28, 32, 35, 40, 42, 48, 50, 56, 60, 64, 80, 256];
 
 /// Panah kursor klasik dalam satuan "piksel panah", ujung di (0, 0).
 const ARROW: [(f32, f32); 7] = [
@@ -30,7 +30,7 @@ pub fn ico() -> Vec<u8> {
         .iter()
         .map(|&s| {
             let px = render(s);
-            if s >= 256 {
+            if s >= 48 {
                 png(s, &px)
             } else {
                 dib(s, &px)
@@ -65,8 +65,8 @@ pub fn preview(size: u32) -> Vec<u8> {
 /// RGBA (alpha lurus), dengan supersampling per piksel.
 fn render(size: u32) -> Vec<u8> {
     let n = size as usize;
-    let ss = if size <= 64 { 4 } else { 3 };
-    let lw = RING_HALF.max(0.8 / size as f32);
+    let ss = if size <= 64 { 6 } else { 4 };
+    let lw = RING_HALF.max(1.05 / size as f32);
     let mut out = vec![0u8; n * n * 4];
     for py in 0..n {
         for px in 0..n {

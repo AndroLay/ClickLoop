@@ -43,7 +43,7 @@ unsafe fn apply_dpi(h: HWND, ui: &UiCell, d: u32, rc: RECT) {
         // Font dan brush lama dilepas oleh Drop untuk Theme saat nilainya diganti.
         u.theme = crate::theme::Theme::new();
         DestroyIcon(u.icon);
-        u.icon = super::load_icon(sc(32));
+        u.icon = super::load_icon(sc(28));
         u.hot = null_mut();
         u.focus = null_mut();
     }

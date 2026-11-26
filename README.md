@@ -14,8 +14,8 @@
   <img src="https://img.shields.io/badge/Rust-2021-DEA584?logo=rust&amp;logoColor=white" alt="Rust 2021">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11%20x64-0078D4?logo=windows&amp;logoColor=white" alt="Windows 10/11 x64">
   <img src="https://img.shields.io/badge/Dependencies-Zero%20Crates-16A34A" alt="Zero External Crates">
-  <img src="https://img.shields.io/badge/Portable-476%20KB-0F172A" alt="476 KB Portable">
-  <img src="https://img.shields.io/badge/Installer-881%20KB-0F172A" alt="881 KB Setup">
+  <img src="https://img.shields.io/badge/Portable-488%20KB-0F172A" alt="488 KB Portable">
+  <img src="https://img.shields.io/badge/Installer-906%20KB-0F172A" alt="906 KB Setup">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue" alt="GNU GPLv3 License"></a>
 </p>
 <p align="center">
@@ -40,13 +40,13 @@ Many Windows auto clickers are either bundled with heavy runtimes, split clickin
 
 | Limitation in typical clickers | What ClickLoop provides |
 | --- | --- |
-| Heavy Electron / .NET runtimes or bundled adware | Pure Rust + Win32 with **zero external crates** — `476 KB` portable binary, instant startup |
+| Heavy Electron / .NET runtimes or bundled adware | Pure Rust + Win32 with **zero external crates** — `488 KB` portable binary, instant startup |
 | Separate tools needed for clicking vs. macro recording | Unified **Auto Clicker** and **Record & Playback** (mouse, scroll, keyboard + `.clm` files) in one balanced 2-tab window |
 | `1 ms` click intervals lock up Windows or burst-flood inputs | Explicit `< 10 ms` warning + **anti-burst scheduling (`<= 5 ms`)** with kernel timer yield so UI and OS stay responsive |
 | Rigid countdown presets or no delayed start | Free **`m / s / ms` delayed start** (`0–99m`, `0–99s`, `0–9999ms`) shared across clicking and macro playback |
 | Hard to tell what is running when minimized | Compact **Mini mode** (`320 × 140`) showing active mode (`Clicker` / `Macro`), live status pill, tab switcher, and direct action controls |
 | Runaway clicking when switching windows | Built-in **Focus guard**, **mouse-shake / top-left corner Failsafe**, and automatic release of held keys & buttons on stop |
-| Messy ZIP extraction or UAC-heavy installers | Self-contained **`ClickLoop-Setup.exe`** (`881 KB`) with per-user install, Start Menu/Desktop shortcuts, and clean **Windows Settings → Apps** uninstaller |
+| Messy ZIP extraction or UAC-heavy installers | Self-contained **`ClickLoop-Setup.exe`** (`906 KB`) with per-user install, Start Menu/Desktop shortcuts, and clean **Windows Settings → Apps** uninstaller |
 
 ---
 
@@ -217,8 +217,8 @@ cargo test --manifest-path installer/Cargo.toml
 ```
 
 Latest verified results (`v1.0.0`):
-- **Main application (`clickloop`)**: `cargo fmt --check` clean, `cargo clippy --all-targets -- -D warnings` clean, **16/16 unit tests passed**, release binary `476 KB`.
-- **Installer (`clickloop-installer`)**: `cargo fmt --check` clean, `cargo clippy --all-targets -- -D warnings` clean, **5/5 unit tests passed** (CLI/exe-name auto-uninstall detection, registry command quoting, size rounding, embedded PE verification, live COM `.lnk` creation), release binary `881 KB`.
+- **Main application (`clickloop`)**: `cargo fmt --check` clean, `cargo clippy --all-targets -- -D warnings` clean, **16/16 unit tests passed**, release binary `488 KB`.
+- **Installer (`clickloop-installer`)**: `cargo fmt --check` clean, `cargo clippy --all-targets -- -D warnings` clean, **5/5 unit tests passed** (CLI/exe-name auto-uninstall detection, registry command quoting, size rounding, embedded PE verification, live COM `.lnk` creation), release binary `906 KB`.
 
 ---
 

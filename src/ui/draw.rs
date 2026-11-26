@@ -100,21 +100,21 @@ fn macro_hint(ui: &Ui) -> (String, u32) {
 unsafe fn draw_full(ui: &Ui, dc: HDC, clip: RECT) {
     let p = th::pal();
     let t = &ui.theme;
-    let icon = r(14, 12, 26, 26);
+    let icon = r(14, 11, 28, 28);
     if !ui.icon.is_null() && meets(&icon, &clip) {
         DrawIconEx(
             dc,
             icon.left,
             icon.top,
             ui.icon,
-            sc(26),
-            sc(26),
+            sc(28),
+            sc(28),
             0,
             null_mut(),
             DI_NORMAL,
         );
     }
-    text_at(dc, clip, (46, 12, 108, 26), APP, t.title, p.text, DT_LEFT);
+    text_at(dc, clip, (48, 12, 108, 26), APP, t.title, p.text, DT_LEFT);
 
     let tab_rc = rt(TAB_WELL_FULL);
     if meets(&tab_rc, &clip) {
@@ -255,17 +255,41 @@ unsafe fn draw_full(ui: &Ui, dc: HDC, clip: RECT) {
                 "Supports mouse, scroll & keyboard.".to_string(),
             )
         } else {
-            let acts = r#macro::action_count(&ui.macro_events);
+            let (clicks, scrolls, keys) = r#macro::breakdown(&ui.macro_events);
             let secs = r#macro::total_us(&ui.macro_events) as f64 / 1_000_000.0;
-            let mode = if ui.macro_loop {
-                "Loop until stopped"
+            let summary_line = if clicks + scrolls + keys > 0 {
+                let mut parts = Vec::new();
+                if clicks > 0 {
+                    parts.push(format!(
+                        "{clicks} {}",
+                        if clicks == 1 { "click" } else { "clicks" }
+                    ));
+                }
+                if keys > 0 {
+                    parts.push(format!("{keys} {}", if keys == 1 { "key" } else { "keys" }));
+                }
+                if scrolls > 0 {
+                    parts.push(format!("{scrolls} scroll"));
+                }
+                parts.join(" \u{B7} ")
             } else {
-                "Run once"
+                format!("{} cursor moves", ui.macro_events.len())
+            };
+            let mode = if ui.player.is_playing() {
+                if ui.macro_loop {
+                    format!("Playing \u{B7} loop {}", ui.player.loops() + 1)
+                } else {
+                    "Playing now".to_string()
+                }
+            } else if ui.macro_loop {
+                "Loop until stopped".to_string()
+            } else {
+                "Run once".to_string()
             };
             (
-                format!("{} events ({} actions)", ui.macro_events.len(), acts),
+                summary_line,
                 format!("Duration: {secs:.2} s \u{B7} {mode}"),
-                "Format: ClickLoop Macro (.clm)".to_string(),
+                format!("{} total events \u{B7} .clm format", ui.macro_events.len()),
             )
         };
         text_at(

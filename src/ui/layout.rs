@@ -122,13 +122,13 @@ pub const FIELDS: [Field; 18] = [
     fd(ID_MILLIS, 194, 82, 76, "", "ms", 4, true),
     fd(ID_JITTER, 26, 132, 119, "\u{B1}", "ms", 4, true),
     fd(ID_PRESS, 151, 132, 119, "", "ms", 5, true),
-    fd(ID_MAX_CLICKS, 310, 98, 119, "", "clicks", 10, true),
-    fd(ID_MAX_SECS, 435, 98, 119, "", "sec", 10, true),
-    fd(ID_X, 310, 206, 76, "X", "", 6, false),
-    fd(ID_Y, 392, 206, 76, "Y", "", 6, false),
+    fd(ID_MAX_CLICKS, 310, 96, 119, "", "clicks", 10, true),
+    fd(ID_MAX_SECS, 435, 96, 119, "", "sec", 10, true),
+    fd(ID_X, 310, 200, 76, "X", "", 6, false),
+    fd(ID_Y, 392, 200, 76, "Y", "", 6, false),
     fd(ID_HK_START, 26, 446, 119, "", "", 0, false),
     fd(ID_HK_PICK, 151, 446, 119, "", "", 0, false),
-    fd(ID_POS_JITTER, 310, 238, 119, "\u{B1}", "px", 3, true),
+    fd(ID_POS_JITTER, 310, 232, 119, "\u{B1}", "px", 3, true),
     fd(ID_DELAY_MIN, 26, 388, 74, "", "m", 2, true),
     fd(ID_DELAY_SEC, 106, 388, 74, "", "s", 2, true),
     fd(ID_DELAY_MS, 186, 388, 84, "", "ms", 4, true),
@@ -177,11 +177,11 @@ pub const CARDS_CLICKER: [(i32, i32, i32, i32, &str); 7] = [
     (14, 50, 268, 124, "Click interval"),
     (14, 182, 268, 166, "Click options"),
     (14, 356, 268, 136, "Delayed start"),
-    // Kolom kanan (x=298, w=268): 50..134, 142..276, 284..364, 372..492
-    (298, 50, 268, 84, "Stop after"),
-    (298, 142, 268, 134, "Cursor position"),
-    (298, 284, 268, 80, "Trigger"),
-    (298, 372, 268, 120, ""),
+    // Kolom kanan (x=298, w=268): 50..130, 138..270, 278..354, 362..492
+    (298, 50, 268, 80, "Stop after"),
+    (298, 138, 268, 132, "Cursor position"),
+    (298, 278, 268, 76, "Trigger"),
+    (298, 362, 268, 130, "Safety & profiles"),
 ];
 
 /// Kartu Tab 1 (Record & Play): baris kartu kiri & kanan sejajar 50..276, 284..380, 388..492.
@@ -203,8 +203,8 @@ pub const LABELS_CLICKER: [(&str, i32, i32, i32, i32, bool); 8] = [
     ("Press duration", 151, 114, 119, 15, true),
     ("Mouse button", 26, 212, 244, 15, false),
     ("Click type", 26, 260, 244, 15, true),
-    ("Clicks", 310, 80, 119, 15, true),
-    ("Time", 435, 80, 119, 15, false),
+    ("Clicks", 310, 78, 119, 15, true),
+    ("Time", 435, 78, 119, 15, false),
     ("Start / stop", 26, 426, 119, 16, false),
     ("Pick position", 151, 426, 119, 16, false),
 ];
@@ -225,8 +225,8 @@ pub const LABELS_MACRO: [(&str, i32, i32, i32, i32); 8] = [
 pub const SEG_GROUPS: [(i32, i32, i32, i32); 5] = [
     (26, 228, 244, FIELD_H),
     (26, 276, 244, FIELD_H),
-    (310, 314, 244, FIELD_H),
-    (310, 174, 244, FIELD_H),
+    (310, 306, 244, FIELD_H),
+    (310, 168, 244, FIELD_H),
     (160, 11, 220, 28),
 ];
 /// ID awal tiap grup segmen (0 button, 1 tipe klik, 2 pemicu, 3 posisi, 4 tab mode).
@@ -282,21 +282,21 @@ pub const DELAY_HINT_CLICKER: (i32, i32, i32, i32) = (166, 364, 104, 18);
 pub const DELAY_HINT_MACRO: (i32, i32, i32, i32) = (166, 292, 104, 18);
 pub const MACRO_HINT: (i32, i32, i32, i32) = (142, 58, 128, 18);
 pub const STOP_HINT: (i32, i32, i32, i32) = (438, 58, 116, 18);
-pub const POS_HINT: (i32, i32, i32, i32) = (422, 150, 132, 18);
-pub const TRIG_HINT: (i32, i32, i32, i32) = (310, 344, 244, 15);
+pub const POS_HINT: (i32, i32, i32, i32) = (422, 146, 132, 18);
+pub const TRIG_HINT: (i32, i32, i32, i32) = (310, 335, 244, 15);
 pub const MACRO_DETAIL_1: (i32, i32, i32, i32) = (310, 420, 244, 18);
 pub const MACRO_DETAIL_2: (i32, i32, i32, i32) = (310, 442, 244, 18);
 pub const MACRO_DETAIL_3: (i32, i32, i32, i32) = (310, 464, 244, 18);
 
 // Kontrol Tab 0 (Auto Clicker)
 pub const HOLD_RC: (i32, i32, i32, i32) = (26, 308, 244, 32);
-pub const PICK_RC: (i32, i32, i32, i32) = (474, 206, 80, FIELD_H);
-pub const CLEAR_RC: (i32, i32, i32, i32) = (435, 238, 119, FIELD_H);
-pub const FOCUS_RC_0: (i32, i32, i32, i32) = (310, 380, 244, 24);
-pub const FAILSAFE_RC_0: (i32, i32, i32, i32) = (310, 406, 244, 24);
-pub const TRAY_RC_0: (i32, i32, i32, i32) = (310, 432, 244, 24);
-pub const LOAD_RC_0: (i32, i32, i32, i32) = (310, 460, 119, 24);
-pub const SAVE_RC_0: (i32, i32, i32, i32) = (435, 460, 119, 24);
+pub const PICK_RC: (i32, i32, i32, i32) = (474, 200, 80, FIELD_H);
+pub const CLEAR_RC: (i32, i32, i32, i32) = (435, 232, 119, FIELD_H);
+pub const FOCUS_RC_0: (i32, i32, i32, i32) = (310, 389, 244, 22);
+pub const FAILSAFE_RC_0: (i32, i32, i32, i32) = (310, 413, 244, 22);
+pub const TRAY_RC_0: (i32, i32, i32, i32) = (310, 437, 244, 22);
+pub const LOAD_RC_0: (i32, i32, i32, i32) = (310, 462, 119, 24);
+pub const SAVE_RC_0: (i32, i32, i32, i32) = (435, 462, 119, 24);
 
 // Kontrol Tab 1 (Record & Play)
 pub const MACRO_REC_RC: (i32, i32, i32, i32) = (26, 108, 119, 32);

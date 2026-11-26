@@ -106,7 +106,7 @@ impl Ui {
             runner: Runner::new(),
             player: Player::new(),
             theme: Theme::new(),
-            icon: load_icon(sc(32)),
+            icon: load_icon(sc(28)),
             tray_icon: load_icon(GetSystemMetrics(SM_CXSMICON)),
             ctl: [null_mut(); 18],
             segs: [null_mut(); 14],

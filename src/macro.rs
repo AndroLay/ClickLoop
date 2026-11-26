@@ -57,19 +57,24 @@ pub fn total_us(events: &[Event]) -> u64 {
 
 /// Jumlah aksi non-gerak (klik + scroll + tekan tombol keyboard) untuk ringkasan yang ramah pengguna.
 pub fn action_count(events: &[Event]) -> usize {
-    events
-        .iter()
-        .filter(|e| {
-            matches!(
-                e.action,
-                Action::LeftDown
-                    | Action::RightDown
-                    | Action::MiddleDown
-                    | Action::Wheel(_)
-                    | Action::KeyDown { .. }
-            )
-        })
-        .count()
+    let (clicks, scrolls, keys) = breakdown(events);
+    clicks + scrolls + keys
+}
+
+/// Rincian jumlah `(klik mouse, scroll wheel, tekan keyboard)` pada makro.
+pub fn breakdown(events: &[Event]) -> (usize, usize, usize) {
+    let mut clicks = 0usize;
+    let mut scrolls = 0usize;
+    let mut keys = 0usize;
+    for e in events {
+        match e.action {
+            Action::LeftDown | Action::RightDown | Action::MiddleDown => clicks += 1,
+            Action::Wheel(_) => scrolls += 1,
+            Action::KeyDown { .. } => keys += 1,
+            _ => {}
+        }
+    }
+    (clicks, scrolls, keys)
 }
 
 /// Ringkasan singkat untuk header kartu makro, misalnya "12 actions · 4.2 s" atau "No macro".
