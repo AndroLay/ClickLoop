@@ -16,7 +16,7 @@ The repository contains two standalone zero-dependency Rust crates:
    - `src/ui.rs` + `src/ui/*`: Window lifecycle, balanced 2-tab layout (`layout.rs`), control construction (`create.rs`), owner-draw Fluent controls (`draw.rs`), message dispatch (`events.rs`), actions (`actions.rs`), state binding (`settings.rs`), and system tray with `TaskbarCreated` recovery (`tray.rs`).
    - `src/clicker.rs`: Auto clicker and Hold-mode worker thread.
    - `src/macro.rs`: Low-level mouse/keyboard hook recorder, `.clm` codec, and drift-free playback worker.
-   - `src/wait.rs`: High-resolution interruptible `Waiter` combining Windows waitable timers (`CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`) with a short final spin.
+   - `src/wait.rs`: High-resolution interruptible `Waiter` using Windows high-resolution waitable timers (`CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`) with `timeBeginPeriod(1)` fallback on older Windows.
    - `src/guard.rs`: Foreground window Focus Guard and mouse-shake / top-left corner Failsafe detector.
    - `src/picker.rs`: Full-screen coordinate picker overlay using `WH_MOUSE_LL`.
    - `src/config.rs`, `src/keys.rs`, `src/shell.rs`: Settings/profile `.ini` I/O, hotkey validation, and native `GetOpenFileNameW`/`GetSaveFileNameW` dialogs (`OFN_NOCHANGEDIR`).
@@ -50,9 +50,9 @@ The repository contains two standalone zero-dependency Rust crates:
 4. **Input &amp; timing:** Resolves the target point (live cursor, fixed `(X, Y)`, or 2–5 point sequence + optional pixel jitter), sends input via `SendInput`, and waits for the next deadline.
 
 ### Record &amp; Playback Loop
-1. **Record (`F9`):** Captures mouse movement, clicks, wheel, and keyboard down/up events on an isolated hook thread, skipping ClickLoop's own window and control hotkeys, coalescing tiny moves (`>= 3 px` / `>= 8 ms`), and trimming trailing modifier keys.
-2. **Store (optional):** Saves/loads macros in portable plain-text `.clm` files.
-3. **Playback (`F10`):** Runs optional delayed start, replays events drift-free via `Waiter` (once or on Loop) under Focus guard &amp; Failsafe, and releases any held mouse buttons or keyboard keys immediately on pause or stop.
+1. **Record (`F9`):** Installs `WH_MOUSE_LL` and `WH_KEYBOARD_LL` on the UI message loop to capture mouse movement, clicks, wheel, and keyboard down/up events, skipping ClickLoop's own window and control hotkeys, coalescing tiny moves (`|dx| + |dy| >= 3 px` and `>= 8 ms`), and trimming trailing modifier keys.
+2. **Store (optional):** Saves/loads macros in portable plain-text `.clm` files (`# ClickLoop Macro v1`, relative `delay_us` per event).
+3. **Playback (`F10`):** Runs optional delayed start, replays events drift-free via `Waiter` (once or on Loop) under Focus guard &amp; O(1) active-target Failsafe, and releases any held mouse buttons or keyboard keys immediately on pause or stop.
 
 ---
 
@@ -60,10 +60,10 @@ The repository contains two standalone zero-dependency Rust crates:
 
 | Thread | Responsibility | Communication |
 | --- | --- | --- |
-| **UI Thread (STA)** | Runs the Win32 message loop, holds `UiCell = Rc<RefCell<Ui>>`, renders Fluent GDI UI, and polls live progress on a `250 ms` timer. | Passes immutable snapshots of settings/events to workers; reads atomic counters and status flags. |
-| **Clicker / Hold Worker** | Executes delayed countdown, Focus guard / Failsafe checks, `SendInput`, and `Waiter` timing. | Controlled via `Arc<AtomicBool>` stop flag; exposes click count, countdown, and pause reason atomically. |
-| **Macro Playback Worker** | Executes delayed countdown, drift-free `.clm` event replay, loop counter, and stuck-input cleanup. | Controlled via `Arc<AtomicBool>` stop flag; exposes loop count and pause state atomically. |
-| **Macro Recorder Thread** | Runs a dedicated message pump for `WH_MOUSE_LL` and `WH_KEYBOARD_LL` so hook latency never hits Windows' `LowLevelHooksTimeout`. | Returns the finalized `Vec<Event>` to the UI thread on stop. |
+| **UI Thread (STA)** | Runs the Win32 message loop, holds `UiCell = Rc<RefCell<Ui>>`, renders Fluent GDI UI, hosts temporary `WH_MOUSE_LL` / `WH_KEYBOARD_LL` hooks during picking/recording, and polls live progress on a `250 ms` timer. | Passes immutable snapshots of settings/events to workers; reads atomic counters and status flags. |
+| **Clicker / Hold Worker** | Executes delayed countdown, Focus guard / Failsafe checks, `SendInput`, and `Waiter` timing. | Controlled via `Arc<AtomicBool>` stop flag and `StopEvent`; exposes click count, countdown, and pause reason atomically. |
+| **Macro Playback Worker** | Executes delayed countdown, drift-free `.clm` event replay, loop counter, active synthetic cursor tracking, and stuck-input cleanup. | Controlled via `Arc<AtomicBool>` stop flag and `StopEvent`; exposes loop count, countdown, and pause state atomically. |
+| **Guard Thread** | Runs only when Focus guard or Failsafe is enabled; waits out Delayed Start countdown, tracks target foreground window, and monitors mouse shake / top-left corner at O(1) cost per tick. | Shares `Arc<Shared>` atomics and `StopEvent` with the active worker. |
 
 ### Re-entrancy Protection (`UiCell`)
 Win32 message handlers (`wnd_proc`) are inherently re-entrant: calling `SetWindowTextW`, `DestroyWindow`, `MessageBoxW`, or native file dialogs synchronously dispatches nested messages back into `wnd_proc`.
@@ -75,7 +75,7 @@ Win32 message handlers (`wnd_proc`) are inherently re-entrant: calling `SetWindo
 
 ## 5. Timing Precision &amp; `1 ms` Anti-Burst Scheduling
 
-- **`Waiter` (`src/wait.rs`):** Requests `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION` (Windows 10 1803+) with fallback to standard waitable timers, sleeping in the kernel until ~1–2 ms before the deadline and performing a brief bounded yield/spin for sub-millisecond accuracy while polling the `stop` atomic flag.
+- **`Waiter` (`src/wait.rs`):** Requests `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION` (Windows 10 1803+) with fallback to standard waitable timers + `timeBeginPeriod(1)`. Waits in the kernel via `WaitForMultipleObjects` on `[stop_event, timer]` with zero busy-spinning so stop signals wake immediately.
 - **Anti-burst rule (`src/clicker.rs`):**
   - When `interval > 5 ms`: next deadline advances from the previous target (`deadline + interval`) to preserve long-term cadence without drift.
   - When `interval <= 5 ms` (such as `1 ms` clicking): `schedule_next()` advances from **completion time** (`now + interval`). If Windows pauses the thread briefly, ClickLoop never emits a sudden catch-up flood of `SendInput` events that could freeze input processing.
@@ -84,13 +84,13 @@ Win32 message handlers (`wnd_proc`) are inherently re-entrant: calling `SetWindo
 
 ## 6. Macro Recording &amp; Replay Integrity
 
-- **Isolated hook thread:** `WH_MOUSE_LL` and `WH_KEYBOARD_LL` run on a dedicated thread with its own message pump so hook latency stays tiny and never trips Windows' `LowLevelHooksTimeout`.
+- **Lightweight UI-thread hooks:** `WH_MOUSE_LL` and `WH_KEYBOARD_LL` attach to the existing Win32 message loop only while recording is active and perform only fast `try_lock` pushes so hook callbacks return immediately.
 - **Event filtering &amp; coalescing:**
   - Ignores events with `LLMHF_INJECTED` / `LLKHF_INJECTED` flags (prevents feedback loops).
-  - Ignores mouse events occurring inside ClickLoop's own window rectangle.
-  - Skips configured control hotkeys (`rec_key`, `play_key`, `Esc`) and trims trailing modifier key-downs captured right as the user hits the stop hotkey.
-  - Coalesces mouse move samples (`>= 3 px` Euclidean delta and `>= 8 ms` interval) to keep `.clm` files compact and smooth.
-- **Held-input tracking:** Playback maintains the set of currently pressed synthetic mouse buttons and virtual keys (`pressed_keys`). On stop, completion, failsafe trigger, or Focus Guard pause, every held button/key receives a matching key-up/button-up `SendInput` event so the user is never left with a stuck `Shift`, `Ctrl`, or mouse button.
+  - Ignores mouse events occurring inside ClickLoop's own window rectangle and keyboard events while ClickLoop is foreground.
+  - Skips configured control hotkeys (`start_key`, `rec_key`, `play_key`, `Esc`) and trims trailing modifier key-downs captured right as the user hits the stop hotkey.
+  - Coalesces mouse move samples (`|dx| + |dy| >= 3 px` Manhattan distance and `>= 8 ms` interval) to keep `.clm` files compact and smooth.
+- **Held-input tracking &amp; Focus guard re-check:** Playback re-checks Focus guard right before every `SendInput` and tracks every pressed synthetic mouse button and virtual key (`HeldInputs`). On stop, completion, failsafe trigger, or Focus guard pause, every held button/key receives a matching key-up/button-up `SendInput` event so the user is never left with a stuck `Shift`, `Ctrl`, or mouse button.
 
 ---
 

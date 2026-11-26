@@ -2,7 +2,7 @@
 use crate::shell::{self, CMD_EXIT, CMD_SHOW, CMD_TOGGLE};
 use crate::win32::*;
 
-use super::actions::toggle_run;
+use super::actions::{finish_play, finish_record, toggle_run, End};
 use super::window::{window_alive, Ui, UiCell};
 use super::APP;
 
@@ -73,15 +73,34 @@ pub(super) unsafe fn on_tray_message(h: HWND, ui: &UiCell, l: LPARAM) {
     match (l as usize & 0xFFFF) as u32 {
         WM_LBUTTONUP | WM_LBUTTONDBLCLK => restore(h, ui),
         WM_RBUTTONUP => {
-            let running = ui.borrow().runner.is_running();
+            let busy = {
+                let u = ui.borrow();
+                u.runner.is_running()
+                    || u.was_running
+                    || u.recording
+                    || u.player.is_playing()
+                    || u.was_playing
+            };
             // Lepaskan borrow sebelum TrackPopupMenu karena menu menjalankan modal message loop.
-            let cmd = shell::tray_menu(h, running);
+            let cmd = shell::tray_menu(h, busy);
             if !window_alive(h) {
                 return;
             }
             match cmd {
                 CMD_SHOW => restore(h, ui),
-                CMD_TOGGLE => toggle_run(h, ui),
+                CMD_TOGGLE => {
+                    let (rec, play) = {
+                        let u = ui.borrow();
+                        (u.recording, u.player.is_playing() || u.was_playing)
+                    };
+                    if rec {
+                        finish_record(h, ui);
+                    } else if play {
+                        finish_play(h, ui, End::User);
+                    } else {
+                        toggle_run(h, ui);
+                    }
+                }
                 CMD_EXIT => {
                     PostMessageW(h, WM_CLOSE, 0, 0);
                 }

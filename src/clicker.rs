@@ -2,7 +2,7 @@
 //! Penjaga fokus dan failsafe ada di guard.rs dan berjalan di thread sendiri, hanya bila diaktifkan.
 //! Thread hanya hidup saat berjalan dan stack-nya dibatasi 64 KB agar RAM tetap kecil.
 use std::ptr::{null, null_mut};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -39,6 +39,29 @@ pub struct Shared {
     pub stop_reason: AtomicU8,
     /// Sisa hitung mundur sebelum mulai (milidetik); 0 bila tidak sedang menghitung.
     pub countdown: AtomicU32,
+    /// Posisi kursor sintetis terakhir yang sedang digerakkan pemutar makro (O(1) untuk failsafe).
+    pub synth_valid: AtomicBool,
+    pub synth_x: AtomicI32,
+    pub synth_y: AtomicI32,
+}
+
+impl Shared {
+    pub fn set_synth_pos(&self, x: i32, y: i32) {
+        self.synth_x.store(x, Ordering::Relaxed);
+        self.synth_y.store(y, Ordering::Relaxed);
+        self.synth_valid.store(true, Ordering::Release);
+    }
+
+    pub fn synth_pos(&self) -> Option<(i32, i32)> {
+        if self.synth_valid.load(Ordering::Acquire) {
+            Some((
+                self.synth_x.load(Ordering::Relaxed),
+                self.synth_y.load(Ordering::Relaxed),
+            ))
+        } else {
+            None
+        }
+    }
 }
 
 pub struct Runner {
@@ -92,6 +115,9 @@ impl Runner {
         self.stop_ev = ev;
         self.count.store(0, Ordering::Relaxed);
         let shared = Arc::new(Shared::default());
+        if cfg.delay_ms > 0 {
+            shared.countdown.store(cfg.delay_ms, Ordering::Relaxed);
+        }
         if cfg.focus_guard {
             shared.pause.store(PAUSE_WAIT_TARGET, Ordering::Relaxed);
         }

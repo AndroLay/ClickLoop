@@ -29,7 +29,7 @@
 
 > **Latest release: [v1.0.0](https://github.com/AndroLay/ClickLoop/releases/tag/v1.0.0).**
 > Ready to use via **`ClickLoop-Setup.exe`** (installer + uninstaller, no admin required) or portable **`clickloop.exe`**.
-> Both crates compile with zero external dependencies, pass `cargo clippy --all-targets -- -D warnings`, and pass all **20 unit tests** (15 app + 5 installer).
+> Both crates compile with zero external dependencies, pass `cargo clippy --all-targets -- -D warnings`, and pass all **21 unit tests** (16 app + 5 installer).
 
 ---
 
@@ -216,7 +216,7 @@ cargo test --manifest-path installer/Cargo.toml
 ```
 
 Latest verified results (`v1.0.0`):
-- **Main application (`clickloop`)**: `cargo fmt --check` clean, `cargo clippy --all-targets -- -D warnings` clean, **15/15 unit tests passed**, release binary `476 KB`.
+- **Main application (`clickloop`)**: `cargo fmt --check` clean, `cargo clippy --all-targets -- -D warnings` clean, **16/16 unit tests passed**, release binary `476 KB`.
 - **Installer (`clickloop-installer`)**: `cargo fmt --check` clean, `cargo clippy --all-targets -- -D warnings` clean, **5/5 unit tests passed** (CLI/exe-name auto-uninstall detection, registry command quoting, size rounding, embedded PE verification, live COM `.lnk` creation), release binary `881 KB`.
 
 ---

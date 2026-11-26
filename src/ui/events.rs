@@ -357,18 +357,25 @@ unsafe fn click(h: HWND, ui: &UiCell, id: i32) {
     }
     match id {
         ID_HOLD => {
-            let (hold_btn, msg) = {
+            let (hold_btn, switched_pos, msg) = {
                 let mut u = ui.borrow_mut();
                 u.hold = !u.hold;
+                let switched = u.hold && u.pos == 2;
+                if switched {
+                    u.pos = 0;
+                }
                 let note = next_start_note(&u);
                 let msg = if u.hold {
                     format!("Hold mode on. Clicks continue until stopped.{note}")
                 } else {
                     format!("Hold mode off.{note}")
                 };
-                (u.hold_btn, msg)
+                (u.hold_btn, switched, msg)
             };
             redraw(hold_btn);
+            if switched_pos {
+                redraw_group(ui, 3);
+            }
             refresh_enabled(h, ui);
             // Label dan isian yang redup ikut berubah, jadi seluruh area digambar ulang.
             InvalidateRect(h, null(), 0);

@@ -262,17 +262,31 @@ pub fn install(opts: InstallOptions) -> Result<InstallReport, String> {
     })
 }
 
-fn schedule_self_cleanup(uninstaller: &Path, dir: &Path) {
-    // Runs briefly after this process exits to delete uninstall.exe and the empty folder.
-    let cmd = format!(
-        "ping 127.0.0.1 -n 2 >NUL & del /F /Q \"{}\" >NUL 2>&1 & rmdir \"{}\" >NUL 2>&1",
+/// Cleanup task to run right as the uninstaller process exits (so `uninstall.exe` is unlocked).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeferredCleanup {
+    pub uninstaller: PathBuf,
+    pub dir: PathBuf,
+}
+
+impl DeferredCleanup {
+    pub fn spawn(&self) {
+        let cmd = self_cleanup_cmd(&self.uninstaller, &self.dir);
+        let _ = Command::new("cmd.exe")
+            .args(["/C", &cmd])
+            .creation_flags_no_window()
+            .spawn();
+    }
+}
+
+fn self_cleanup_cmd(uninstaller: &Path, dir: &Path) -> String {
+    // Retries briefly after process exit so uninstall.exe and the empty install folder are always removed.
+    format!(
+        "for /L %i in (1,1,6) do (ping 127.0.0.1 -n 2 >NUL & del /F /Q \"{}\" >NUL 2>&1 & rmdir \"{}\" >NUL 2>&1 & if not exist \"{}\" exit /b 0)",
         uninstaller.display(),
-        dir.display()
-    );
-    let _ = Command::new("cmd.exe")
-        .args(["/C", &cmd])
-        .creation_flags_no_window()
-        .spawn();
+        dir.display(),
+        uninstaller.display()
+    )
 }
 
 trait CommandNoWindow {
@@ -287,7 +301,7 @@ impl CommandNoWindow for Command {
     }
 }
 
-pub fn uninstall(remove_config: bool) -> Result<(), String> {
+pub fn uninstall(remove_config: bool) -> Result<Option<DeferredCleanup>, String> {
     let dir = install_dir()?;
     let exe_path = dir.join("clickloop.exe");
     let ini_path = dir.join("clickloop.ini");
@@ -340,15 +354,17 @@ pub fn uninstall(remove_config: bool) -> Result<(), String> {
         .unwrap_or(false);
 
     if running_from_uninstaller {
-        schedule_self_cleanup(&uninst_path, &dir);
+        Ok(Some(DeferredCleanup {
+            uninstaller: uninst_path,
+            dir,
+        }))
     } else {
         if uninst_path.exists() {
             let _ = fs::remove_file(&uninst_path);
         }
         let _ = fs::remove_dir(&dir);
+        Ok(None)
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -412,6 +428,12 @@ mod tests {
             uninstall_command(p, true),
             r#""C:\Users\Test User\AppData\Local\Programs\ClickLoop\uninstall.exe" --uninstall --silent"#
         );
+
+        let dir = Path::new(r"C:\Users\Test User\AppData\Local\Programs\ClickLoop");
+        let cmd = self_cleanup_cmd(p, dir);
+        assert!(cmd.contains("for /L %i in (1,1,6)"));
+        assert!(cmd.contains(&format!("del /F /Q \"{}\"", p.display())));
+        assert!(cmd.contains(&format!("rmdir \"{}\"", dir.display())));
     }
 
     #[test]

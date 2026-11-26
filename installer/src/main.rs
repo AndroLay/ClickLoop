@@ -4,9 +4,11 @@
 mod install;
 mod win32;
 
+use std::cell::RefCell;
 use std::ptr::{null, null_mut};
+use std::rc::Rc;
 
-use install::{CliAction, InstallOptions, APP_NAME, APP_VERSION};
+use install::{CliAction, DeferredCleanup, InstallOptions, APP_NAME, APP_VERSION};
 use win32::*;
 
 const CLASS_NAME: &str = "ClickLoopSetupWindow";
@@ -38,6 +40,7 @@ struct SetupUi {
     uninstall_mode: bool,
     installed: bool,
     finished: bool,
+    pending_cleanup: Rc<RefCell<Option<DeferredCleanup>>>,
     font_title: HFONT,
     font_body: HFONT,
     font_small: HFONT,
@@ -314,7 +317,8 @@ impl SetupUi {
         }
 
         match install::uninstall(remove_cfg) {
-            Ok(_report) => {
+            Ok(deferred) => {
+                *self.pending_cleanup.borrow_mut() = deferred;
                 self.installed = false;
                 self.finished = true;
                 self.set_text(
@@ -630,6 +634,7 @@ fn run_gui(uninstall_mode: bool) {
         let x = ((sx - win_w) / 2).max(0);
         let y = ((sy - win_h) / 2).max(0);
 
+        let pending_cleanup: Rc<RefCell<Option<DeferredCleanup>>> = Rc::new(RefCell::new(None));
         let scale = |px: i32| (px * dpi + 48) / 96;
         let mut ui = Box::new(SetupUi {
             hwnd,
@@ -637,6 +642,7 @@ fn run_gui(uninstall_mode: bool) {
             uninstall_mode,
             installed: install::is_installed(),
             finished: false,
+            pending_cleanup: pending_cleanup.clone(),
             font_title: make_font(scale(20), FW_SEMIBOLD),
             font_body: make_font(scale(14), FW_NORMAL),
             font_small: make_font(scale(13), FW_NORMAL),
@@ -686,6 +692,11 @@ fn run_gui(uninstall_mode: bool) {
                 DispatchMessageW(&msg);
             }
         }
+        // Spawn deferred self-delete only after the GUI window has closed and the process is exiting.
+        let cleanup = pending_cleanup.borrow_mut().take();
+        if let Some(cleanup) = cleanup {
+            cleanup.spawn();
+        }
     }
 }
 
@@ -700,11 +711,13 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        CliAction::SilentUninstall { remove_config } => {
-            if let Err(err) = install::uninstall(remove_config) {
+        CliAction::SilentUninstall { remove_config } => match install::uninstall(remove_config) {
+            Ok(Some(cleanup)) => cleanup.spawn(),
+            Ok(None) => {}
+            Err(err) => {
                 message_box(null_mut(), "ClickLoop Setup", &err, MB_OK | MB_ICONERROR);
                 std::process::exit(1);
             }
-        }
+        },
     }
 }

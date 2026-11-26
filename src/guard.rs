@@ -37,6 +37,31 @@ pub struct Config {
     pub radius: i32,
 }
 
+/// Apakah titik kursor `(x, y)` berada di dekat titik klik tetap/urutan atau posisi sintetis aktif makro.
+fn is_near(x: i32, y: i32, near: &[(i32, i32)], synth: Option<(i32, i32)>, radius: i32) -> bool {
+    let near_static = near
+        .iter()
+        .any(|&(px, py)| (px - x).abs() <= radius && (py - y).abs() <= radius);
+    if near_static {
+        return true;
+    }
+    synth.is_some_and(|(sx, sy)| (sx - x).abs() <= radius && (sy - y).abs() <= radius)
+}
+
+/// Apakah pojok kiri-atas sedang dipakai sebagai target sah (sehingga corner failsafe tidak boleh memicu).
+fn corner_suppressed(
+    vx: i32,
+    vy: i32,
+    near: &[(i32, i32)],
+    synth: Option<(i32, i32)>,
+    radius: i32,
+) -> bool {
+    let lim_x = vx + CORNER_PX + radius;
+    let lim_y = vy + CORNER_PX + radius;
+    near.iter().any(|&(x, y)| x <= lim_x && y <= lim_y)
+        || synth.is_some_and(|(x, y)| x <= lim_x && y <= lim_y)
+}
+
 /// Jalankan penjaga sampai diminta berhenti atau failsafe terpicu.
 /// Saat failsafe terpicu: stop_reason diisi, active dimatikan, dan event berhenti diset.
 pub fn run(cfg: Config, shared: Arc<Shared>, active: Arc<AtomicBool>, stop: StopEvent) {
@@ -52,16 +77,19 @@ pub fn run(cfg: Config, shared: Arc<Shared>, active: Arc<AtomicBool>, stop: Stop
             GetSystemMetrics(SM_YVIRTUALSCREEN),
         )
     };
-    // Bila titik klik berada di pojok, pojok tidak dipakai sebagai failsafe (kursor memang di sana saat klik).
-    let corner_used = cfg
-        .near
-        .iter()
-        .any(|&(x, y)| x <= vx + CORNER_PX + cfg.radius && y <= vy + CORNER_PX + cfg.radius);
-    // Target = jendela eksternal pertama yang aktif setelah mulai. Jendela ClickLoop tidak pernah jadi target.
+    // Target = jendela eksternal pertama yang aktif setelah hitung mundur selesai. Jendela ClickLoop tidak pernah jadi target.
     let mut target: HWND = null_mut();
     let mut shake = Shake::default();
 
     loop {
+        // Selama Delayed Start masih menghitung mundur, jangan kunci target fokus atau picu failsafe.
+        if shared.countdown.load(Ordering::Relaxed) > 0 {
+            shake.reset();
+            if !w.until(Instant::now() + period) {
+                break;
+            }
+            continue;
+        }
         if cfg.focus {
             let fg = unsafe { GetForegroundWindow() };
             if target.is_null() && !fg.is_null() && !is_own(fg) {
@@ -79,10 +107,9 @@ pub fn run(cfg: Config, shared: Arc<Shared>, active: Arc<AtomicBool>, stop: Stop
         if cfg.failsafe {
             let mut p = POINT::default();
             unsafe { GetCursorPos(&mut p) };
-            let near = cfg
-                .near
-                .iter()
-                .any(|&(px, py)| (px - p.x).abs() <= cfg.radius && (py - p.y).abs() <= cfg.radius);
+            let synth = shared.synth_pos();
+            let near = is_near(p.x, p.y, &cfg.near, synth, cfg.radius);
+            let corner_used = corner_suppressed(vx, vy, &cfg.near, synth, cfg.radius);
             let corner = !corner_used && p.x <= vx + CORNER_PX && p.y <= vy + CORNER_PX;
             let shaken = if near {
                 shake.reset();
@@ -212,5 +239,16 @@ mod tests {
         assert!(!s.feed((350, 100), t0 + Duration::from_millis(150)));
         // Jeda melebihi SHAKE_WINDOW: hitungan mulai ulang sehingga belokan berikutnya belum memicu.
         assert!(!s.feed((100, 100), t0 + Duration::from_millis(800)));
+    }
+
+    #[test]
+    fn near_and_corner_use_active_synth_target_without_blocking_elsewhere() {
+        // Saat makro sedang di (500, 500), titik dekat (500, 500) diabaikan, tetapi pojok & lokasi lain tetap aktif.
+        assert!(is_near(505, 495, &[], Some((500, 500)), NEAR_SLACK));
+        assert!(!is_near(200, 200, &[], Some((500, 500)), NEAR_SLACK));
+        assert!(!corner_suppressed(0, 0, &[], Some((500, 500)), NEAR_SLACK));
+
+        // Hanya saat target aktif makro sendiri berada di pojok kiri-atas, corner failsafe diredam sementara.
+        assert!(corner_suppressed(0, 0, &[], Some((4, 4)), NEAR_SLACK));
     }
 }

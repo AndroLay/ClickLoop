@@ -64,23 +64,23 @@ Switch to the **Record &amp; Play** tab to record and replay multi-step mouse an
 - `.clm` files are plain-text UTF-8 files with microsecond timestamps, making them portable and inspectable:
 
 ```text
-CLM1
-0,M,640,420
-125000,LD,640,420
-185000,LU,640,420
-310000,KD,65,30,0
-370000,KU,65,30,0
-520000,W,640,420,-120
+# ClickLoop Macro v1
+0,640,420,M
+125000,640,420,LD
+60000,640,420,LU
+125000,0,0,KD,65,30,0
+60000,0,0,KU,65,30,0
+150000,640,420,W,-120
 ```
 
 | Event code | Meaning | Fields |
 | --- | --- | --- |
-| `M` | Cursor move | `us,M,x,y` |
-| `LD` / `LU` | Left button down / up | `us,LD,x,y` / `us,LU,x,y` |
-| `RD` / `RU` | Right button down / up | `us,RD,x,y` / `us,RU,x,y` |
-| `MD` / `MU` | Middle button down / up | `us,MD,x,y` / `us,MU,x,y` |
-| `W` | Mouse wheel scroll | `us,W,x,y,delta` |
-| `KD` / `KU` | Keyboard key down / up | `us,KD,vk,scan,ext` / `us,KU,vk,scan,ext` |
+| `M` | Cursor move | `delay_us,x,y,M` |
+| `LD` / `LU` | Left button down / up | `delay_us,x,y,LD` / `delay_us,x,y,LU` |
+| `RD` / `RU` | Right button down / up | `delay_us,x,y,RD` / `delay_us,x,y,RU` |
+| `MD` / `MU` | Middle button down / up | `delay_us,x,y,MD` / `delay_us,x,y,MU` |
+| `W` | Mouse wheel scroll | `delay_us,x,y,W,delta` |
+| `KD` / `KU` | Keyboard key down / up | `delay_us,0,0,KD,vk,scan,ext` / `delay_us,0,0,KU,vk,scan,ext` |
 
 ---
 

@@ -502,6 +502,9 @@ impl Player {
         self.stop_ev = ev;
         self.loops.store(0, Ordering::Relaxed);
         let shared = Arc::new(Shared::default());
+        if cfg.delay_ms > 0 {
+            shared.countdown.store(cfg.delay_ms, Ordering::Relaxed);
+        }
         if cfg.focus_guard {
             shared.pause.store(PAUSE_WAIT_TARGET, Ordering::Relaxed);
         }
@@ -512,16 +515,6 @@ impl Player {
         let (a, l, sh) = (self.active.clone(), self.loops.clone(), shared.clone());
         let focus = cfg.focus_guard;
         let failsafe = cfg.failsafe;
-        // Kumpulkan titik mouse makro agar failsafe tidak false-trigger oleh gerak makro sendiri.
-        let near: Vec<(i32, i32)> = if failsafe {
-            cfg.events
-                .iter()
-                .filter(|e| !matches!(e.action, Action::KeyDown { .. } | Action::KeyUp { .. }))
-                .map(|e| (e.x, e.y))
-                .collect()
-        } else {
-            Vec::new()
-        };
 
         let spawned = thread::Builder::new()
             .stack_size(STACK_BYTES)
@@ -538,7 +531,8 @@ impl Player {
             let gcfg = guard::Config {
                 focus,
                 failsafe,
-                near,
+                // Posisi aktif makro dilacak O(1) lewat `shared.synth_pos()`, sehingga jalur makro tidak mematikan failsafe.
+                near: Vec::new(),
                 radius: guard::NEAR_SLACK,
             };
             let a = self.active.clone();
@@ -679,33 +673,45 @@ fn play_run(
                 if idx > 0 {
                     cum_us = cum_us.saturating_add(ev.delay_us);
                 }
-                // Tunggu fokus kembali jika Focus guard mem-pause, sambil melepas semua tombol mouse & keyboard.
-                if shared.pause.load(Ordering::Relaxed) != PAUSE_NONE {
-                    unsafe { held.release_all() };
-                    while shared.pause.load(Ordering::Relaxed) != PAUSE_NONE {
-                        if w.stopped() || deadline.is_some_and(|d| Instant::now() >= d) {
-                            break 'play;
-                        }
-                        let slice = Instant::now() + PAUSE_SLICE;
-                        let wake = deadline.map_or(slice, |d| slice.min(d));
-                        if !w.until(wake) {
-                            break 'play;
-                        }
+                // Pastikan fokus sah & jadwal tiba bersamaan tepat sebelum mengirim input.
+                loop {
+                    if w.stopped() || deadline.is_some_and(|d| Instant::now() >= d) {
+                        break 'play;
                     }
-                    lap_origin = Instant::now()
-                        .checked_sub(Duration::from_micros(cum_us))
-                        .unwrap_or_else(Instant::now);
+                    if shared.pause.load(Ordering::Relaxed) != PAUSE_NONE {
+                        unsafe { held.release_all() };
+                        while shared.pause.load(Ordering::Relaxed) != PAUSE_NONE {
+                            if w.stopped() || deadline.is_some_and(|d| Instant::now() >= d) {
+                                break 'play;
+                            }
+                            let slice = Instant::now() + PAUSE_SLICE;
+                            let wake = deadline.map_or(slice, |d| slice.min(d));
+                            if !w.until(wake) {
+                                break 'play;
+                            }
+                        }
+                        lap_origin = Instant::now()
+                            .checked_sub(Duration::from_micros(cum_us))
+                            .unwrap_or_else(Instant::now);
+                        continue;
+                    }
+                    let target = lap_origin + Duration::from_micros(cum_us);
+                    let now = Instant::now();
+                    if now >= target {
+                        break;
+                    }
+                    let step = if cfg.focus_guard {
+                        target.min(now + PAUSE_SLICE)
+                    } else {
+                        target
+                    };
+                    let wake = deadline.map_or(step, |d| step.min(d));
+                    if !w.until(wake) {
+                        break 'play;
+                    }
                 }
-                if w.stopped() || deadline.is_some_and(|d| Instant::now() >= d) {
-                    break 'play;
-                }
-                let target = lap_origin + Duration::from_micros(cum_us);
-                let wake = deadline.map_or(target, |d| target.min(d));
-                if !w.until(wake) {
-                    break 'play;
-                }
-                if deadline.is_some_and(|d| Instant::now() >= d) {
-                    break 'play;
+                if !matches!(ev.action, Action::KeyDown { .. } | Action::KeyUp { .. }) {
+                    shared.set_synth_pos(ev.x, ev.y);
                 }
                 unsafe {
                     match ev.action {

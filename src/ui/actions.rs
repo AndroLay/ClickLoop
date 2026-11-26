@@ -300,13 +300,12 @@ pub(super) unsafe fn finish_record(h: HWND, ui: &UiCell) {
 
 /// Memulai atau menghentikan pemutaran makro.
 pub(super) unsafe fn toggle_play(h: HWND, ui: &UiCell) {
-    let (playing, was_playing, stop_reason, has_events, running, recording, picking, tab) = {
+    let (playing, was_playing, stop_reason, running, recording, picking, tab) = {
         let u = ui.borrow();
         (
             u.player.is_playing(),
             u.was_playing,
             u.player.stop_reason(),
-            !u.macro_events.is_empty(),
             u.runner.is_running() || u.was_running,
             u.recording,
             u.picking,
@@ -330,7 +329,7 @@ pub(super) unsafe fn toggle_play(h: HWND, ui: &UiCell) {
     if picking {
         end_pick(h, ui);
     }
-    if !has_events {
+    if ui.borrow().macro_events.is_empty() {
         set_status(h, ui, "Record or load a macro before playing.", true);
         return;
     }
@@ -517,6 +516,9 @@ pub(super) unsafe fn tick(h: HWND, ui: &UiCell) {
         if u.player.is_playing() {
             let pill = (u.player.countdown_ms() > 0, u.player.pause_reason());
             let pill_changed = pill != u.last_pill;
+            if u.last_pill.0 && !pill.0 {
+                u.started = Some(Instant::now());
+            }
             if pill_changed {
                 u.last_pill = pill;
             }
@@ -544,6 +546,9 @@ pub(super) unsafe fn tick(h: HWND, ui: &UiCell) {
         if u.runner.is_running() {
             let pill = (u.runner.countdown_ms() > 0, u.runner.pause_reason());
             let pill_changed = pill != u.last_pill;
+            if u.last_pill.0 && !pill.0 {
+                u.started = Some(Instant::now());
+            }
             if pill_changed {
                 u.last_pill = pill;
             }
